@@ -5,7 +5,11 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-const KEY = 'matilda:entries';
+// Supports both matilda and labplan
+function getKey(app) {
+  if (app === 'labplan') return 'labplan:entries';
+  return 'matilda:entries';
+}
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,12 +18,17 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   try {
+    const app = req.query.app || 'matilda';
+    const KEY = getKey(app);
+
     if (req.method === 'GET') {
       const entries = await redis.get(KEY) || [];
       return res.status(200).json({ ok: true, entries });
     }
+
     if (req.method === 'POST') {
       const { action, entries, entry, id } = req.body;
+
       if (action === 'save_all') {
         await redis.set(KEY, entries);
         return res.status(200).json({ ok: true });
@@ -44,6 +53,7 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
     }
+
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   } catch (err) {
     return res.status(500).json({ ok: false, error: err.message });
